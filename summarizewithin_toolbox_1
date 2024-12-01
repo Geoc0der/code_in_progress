@@ -1,0 +1,93 @@
+# -*- coding: utf-8 -*-
+
+import arcpy
+
+class Toolbox(object):
+    def __init__(self):
+        """Define the toolbox (the name of the toolbox is the name of the
+        .pyt file)."""
+        self.label = "Toolbox"
+        self.alias = "toolbox"
+        # List of tool classes associated with this toolbox
+        self.tools = [Tool]
+
+class Tool(object):
+    def __init__(self):
+        """Define the tool (tool name is the name of the class)."""
+        self.label = "Summarize within test"
+        self.description = ""
+        self.canRunInBackground = False
+    def getParameterInfo(self):
+        """Define parameter definitions"""
+        params = [
+            # Input grid layer to which the analyses are calculated
+            arcpy.Parameter(displayName="Input Grid Layer",
+                            name="input_grid_layer",
+                            datatype="GPFeatureLayer",
+                            parameterType="Required",
+                            direction="Input"),
+            # Data layers that are used in the analysis with the grid layer
+            arcpy.Parameter(displayName="Input data layer",
+                            name="input_data_layer",
+                            datatype="GPFeatureLayer",
+                            direction="Input",
+                            multiValue=True),
+            # Output feature          
+            arcpy.Parameter(displayName="Output feature class",
+                            name="output",
+                            datatype="DEFeatureClass",
+                            parameterType="Required",
+                            direction="Output")
+        ]
+        return params
+
+    def isLicensed(self):
+        """Set whether tool is licensed to execute."""
+        return True
+    def updateParameters(self, parameters):
+        """Modify the values and properties of parameters before internal
+        validation is performed.  This method is called whenever a parameter
+        has been changed."""
+        return
+    def updateMessages(self, parameters):
+        """Modify the messages created by internal validation for each tool
+        parameter.  This method is called after internal validation."""
+        return
+
+    # Source code to the execute module
+    def execute(self, parameters, messages):
+        """The source code of the tool."""
+        input_grid_layer = parameters[0].valueAsText
+        input_data_layer = parameters[1].valueAsText
+        output = parameters[2].valueAsText
+        # Splitting the input data
+        input_data_split = input_data_layer.split(';')
+        arcpy.AddMessage('Splitattu input-data: '+str(input_data_split))
+        # For-looping through the input data and doing the analysis
+        for input_data_parameter in input_data_split:
+            arcpy.AddMessage('Input data parameter, jota tällä hetkellä käsitellään: '+str(input_data_parameter))
+            arcpy.analysis.SummarizeWithin(input_grid_layer,input_data_parameter,output,shape_unit='SQUAREMETERS')
+            # Adding new column for percent and code
+            current_percent = input_data_parameter+'percent'
+            current_code = input_data_parameter+'code'
+            arcpy.management.AddField(output,current_percent,'DOUBLE')
+            arcpy.management.AddField(output,current_code,'SHORT')
+            # Expression to calculate the percent
+            percent_expression='!sum_Area_SQUAREMETERS!/!Shape_Area!*100'
+            # Expression to calculate the code
+            code_expression='''
+import math
+def get_the_code(percent):
+    if percent <= 20:
+        return 0
+    else:
+        return 1
+'''
+            # Calculating the percent and getting the code
+            arcpy.management.CalculateField(output,current_percent,percent_expression)
+            arcpy.management.CalculateField(output,current_code,'get_the_code(!{}!)'.format(current_percent),'PYTHON_9.3',code_expression)
+
+    def postExecute(self, parameters):
+        """This method takes place after outputs are processed and
+        added to the display."""
+        return
